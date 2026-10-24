@@ -15,4 +15,4 @@ pdflatex -interaction=nonstopmode -halt-on-error -output-directory=build -jobnam
 pdflatex -interaction=nonstopmode -halt-on-error -output-directory=build -jobname=research_paper main.tex
 ```
 
-The two images in `images/` are selected copies of existing figures from `runs/comparison_seeds/` and `runs/ppo_summary/`. No experiment output was regenerated for this manuscript. The [original paper](../world_model_rl_study.pdf) and its [source](../world_model_rl_study.tex) remain available.
+The two images in `images/` are selected copies of existing figures from `runs/comparison_seeds/` and `runs/ppo_summary/`. No experiment output was regenerated for this manuscript.

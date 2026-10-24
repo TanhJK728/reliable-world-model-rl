@@ -6,7 +6,7 @@
 
 Continuous control · Learned world models · Policy gradients · Uncertainty
 
-[Research paper](docs/research_paper_v2/research_paper.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#what-the-mathematics-establishes) · [Code](#explore-the-code) · [Get started](#get-started)
+[Research paper](docs/research_paper/research_paper.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#what-the-mathematics-establishes) · [Code](#explore-the-code) · [Get started](#get-started)
 
 </div>
 
@@ -56,7 +56,7 @@ At one finite-action decision state, the paper gives necessary and sufficient co
 
 Exact finite-action and bounded-reward Gaussian examples show how positive weights can produce a direction that lowers the original return. The proofs analyze these mechanisms directly; the existing experiments report the combined behavior of the implemented learning rules.
 
-[Read the research paper](docs/research_paper_v2/research_paper.pdf) · [LaTeX source](docs/research_paper_v2/main.tex) · [Original study](docs/world_model_rl_study.pdf)
+[Read the research paper](docs/research_paper/research_paper.pdf) · [LaTeX source](docs/research_paper/main.tex)
 
 ## What the experiments show
 
@@ -215,7 +215,7 @@ Termination also cuts the critic's continuation value at the segment boundary. W
 | [`imagined_env.py`](imagined_env.py) · [`train_imagined_ppo.py`](train_imagined_ppo.py) | Model-based rollouts and the four refinement variants |
 | [`compare_imagined_methods.py`](compare_imagined_methods.py) · [`aggregate_comparison.py`](aggregate_comparison.py) | Paired evaluation and summaries across seeds |
 
-The [research paper](docs/research_paper_v2/research_paper.pdf) characterizes when positive advantage weights preserve alignment with the original policy gradient and derives how rollout boundaries change the learning objective. It includes complete proofs, finite-action and Gaussian examples, and the existing Pendulum control study. See the [file map](PROJECT_FILES.md) for the remaining utilities.
+The [research paper](docs/research_paper/research_paper.pdf) characterizes when positive advantage weights preserve alignment with the original policy gradient and derives how rollout boundaries change the learning objective. It includes complete proofs, finite-action and Gaussian examples, and the existing Pendulum control study. See the [file map](PROJECT_FILES.md) for the remaining utilities.
 
 ## Get started
 

@@ -15,3 +15,7 @@ THREE_DAY_PLAN.md
 
 # Harness/editor local state
 .claude/
+
+# Local copies of the earlier paper
+/docs/world_model_rl_study.pdf
+/docs/world_model_rl_study.tex
