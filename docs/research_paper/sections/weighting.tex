@@ -109,6 +109,8 @@ g(A)^\top g_w(A)=g^\top Bg-t\norm{Rk}^2<0
 \]
 for sufficiently large $t$. Scaling this finite advantage and shifting its reward preserves the negative sign, so the failure can occur with bounded nonpositive rewards.
 
+The score projection in \eqref{eq:gradient-decomposition} connects to compatible function approximation \cite{sutton}. Its residual $k$ is orthogonal to every score feature under $p$, which gives $Lk=0$. The kernel condition requires the weighted update to retain this cancellation through $Rk=0$. Once it holds, the induced map $B$ determines the update direction, and the symmetric-part condition determines its Euclidean alignment.
+
 \subsection{What Fisher preconditioning changes}
 
 The Fisher-preconditioned weighted direction is $d_w=F^{-1}g_w$. Its first-order effect on the original return is $g^\top d_w$. This quantity uses the natural-gradient geometry \cite{kakade}.

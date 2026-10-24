@@ -249,3 +249,16 @@ CPU, CUDA, and Apple MPS are supported. Model checkpoints (`.pt`) and transition
 - **Richer observations:** which findings carry over to latent dynamics and vision-based manipulation?
 
 The project provides a small, inspectable setting for studying how prediction, uncertainty, and policy optimization interact in embodied control.
+
+## Selected references
+
+Six starting points for the world-model methods, mathematical foundations, and robotics motivation behind this project:
+
+- **[When to Trust Your Model: Model-Based Policy Optimization](https://arxiv.org/abs/1906.08253)** — Janner et al., NeurIPS 2019. How model error informs the use of short imagined rollouts.
+- **[Time Limits in Reinforcement Learning](https://proceedings.mlr.press/v80/pardo18a.html)** — Pardo et al., ICML 2018. Why a truncated trajectory needs a continuation value.
+- **[Policy Invariance Under Reward Transformations: Theory and Application to Reward Shaping](https://people.eecs.berkeley.edu/~russell/papers/icml99-shaping.pdf)** — Ng, Harada, and Russell, ICML 1999. The potential-based view of reward changes and policy invariance.
+- **[A Natural Policy Gradient](https://proceedings.neurips.cc/paper_files/paper/2001/hash/4b86abe48d358ecf194c56c69108433e-Abstract.html)** — Kakade, NeurIPS 2001. Fisher geometry for policy updates, central to our weighted-gradient analysis.
+- **[World4RL](https://arxiv.org/abs/2509.19080v1)** — Jiang et al., 2025. Diffusion world models for policy refinement in robotic manipulation.
+- **[WoVR](https://arxiv.org/abs/2602.13977v1)** — Jiang et al., 2026. Learned visual simulators for reinforcement-learning refinement of vision-language-action policies.
+
+The [research paper](docs/research_paper/research_paper.pdf) includes the full bibliography and a detailed comparison with related theory and methods.

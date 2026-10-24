@@ -109,6 +109,8 @@ In Example~\ref{ex:stopping}, adding $c=1$ changes the stopped values to $0$ for
 
 The pathwise condition also clarifies what is needed in expectation. If $b'_t=b_t+cS_{H-t}+h_t$ with $h_H=0$, the expected change is $cS_H+\E_\pi[\gamma^\tau h_\tau(S_\tau)]$. A common additive change across policies therefore requires and is implied by policy independence of the latter expectation.
 
+The compensation also has a potential-based interpretation \cite{ng}. On the time-augmented state, set $\Phi_t=-cS_{H-t}$, so that $\Phi_H=0$ and $c=\gamma\Phi_{t+1}-\Phi_t$ for $t<H$. The boundary increment $cS_{H-t}=-\Phi_t$ cancels the residual potential at stopping. The remaining return shift is the common constant $-\Phi_0=cS_H$.
+
 The endpoint $\tau=H$ has an empty tail and zero boundary error. A common fixed $\tau$ preserves reward-shift rankings because every policy has the same $D_\pi$. A policy-dependent stopping rule can also preserve them when these expected discounted durations agree.
 
 \subsection{The corresponding GAE target}
