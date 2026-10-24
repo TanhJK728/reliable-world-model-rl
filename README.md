@@ -113,30 +113,48 @@ $$
 
 The implementation includes the change-of-variables correction in the action log probability, GAE advantages, clipped policy and value objectives, and KL-based early stopping. Reward normalization scales the training signal. Evaluation reports the original environment reward.
 
+
 <details>
 <summary><strong>From the action density to the PPO update</strong></summary>
 
 For Pendulum's scalar action, the transformed density is
 
-$$
-\log\pi_\theta(a\mid s)
-=\log\mathcal N(z;\mu_\theta(s),\sigma_\theta^2)
--\log\!\left(2(1-\tanh^2 z)\right).
-$$
+```math
+\log \pi_\theta(a \mid s)
+=
+\log \mathcal{N}\left(z;\mu_\theta(s),\sigma_\theta^2\right)
+-
+\log\left(2(1-\tanh^2 z)\right).
+```
 
 The mean depends on the state. The learned standard deviation is shared across states. The code adds a small numerical stabilizer inside the logarithm.
 
 PPO uses the corrected density to form the likelihood ratio
 
-$$
-\rho_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_{\mathrm{old}}}(a_t\mid s_t)}.
-$$
+```math
+\rho_t(\theta)
+=
+\frac{\pi_\theta(a_t \mid s_t)}
+{\pi_{\theta_{\mathrm{old}}}(a_t \mid s_t)}.
+```
 
-$$
-L^{\mathrm{clip}}=\mathbb E_t\!\left[
-\min\!\left(\rho_t\hat A_t,\mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t\right)
+The PPO clipped surrogate objective is
+
+```math
+L^{\mathrm{clip}}
+=
+\mathbb{E}_t\left[
+\min\left(
+\rho_t\hat{A}_t,
+\mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat{A}_t
+\right)
 \right].
-$$
+```
+
+The implementation maximizes this surrogate with normalized GAE advantages and jointly fits the critic.
+
+</details>
+
 
 The implementation maximizes this surrogate with normalized GAE advantages and jointly fits the critic.
 
