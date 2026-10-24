@@ -1,0 +1,122 @@
+\section{Stopping changes the boundary value}
+\label{sec:stopping}
+
+An imagined segment ends before the original task ends. Its final state therefore carries a continuation value. The choice of value at that boundary determines which return the learner sees. Partial-episode bootstrapping addresses this issue for time limits \cite{pardo}. Uncertainty-triggered stopping adds a policy-dependent boundary.
+
+\subsection{A common objective for the comparison}
+
+Fix a finite horizon $H\ge1$, a discount $0<\gamma\le1$, a Markov transition kernel on standard Borel state and action spaces, and an initial distribution $\mu$. Rewards $r_t(s,a)$ are measurable and bounded. The Markov policy $\pi_t(a\mid s)$ may depend on time. All expectations in this section use these same objects. Time can be included in the state.
+
+Let $\mathcal F_t=\sigma(S_0,A_0,S_1,\ldots,A_{t-1},S_t)$ be the natural history before choosing $A_t$. A stopping time $\tau\in\{1,\ldots,H\}$ is adapted to this history. A gate applied after a transition includes the triggering transition's reward. Let $b_t(s)$ be a bounded measurable boundary value with $b_H=0$. Define
+\begin{align}
+J_H^\pi&=\E_\pi\sum_{t=0}^{H-1}\gamma^t r_t(S_t,A_t),\\
+J_{\tau,b}^\pi&=\E_\pi\left[\sum_{t=0}^{\tau-1}\gamma^t r_t(S_t,A_t)+\gamma^\tau b_\tau(S_\tau)\right].
+\end{align}
+The remaining value at time $t$ is
+\begin{equation}
+V_t^\pi(s)=\E_\pi\left[\left.\sum_{k=t}^{H-1}\gamma^{k-t}r_k(S_k,A_k)\,\right|\,S_t=s\right],\qquad V_H^\pi=0.
+\end{equation}
+The transition law can describe either a learned model or the environment. The comparison below holds within whichever law has been fixed.
+
+\begin{proposition}[Boundary-value error]
+\label{prop:boundary}
+Under the preceding assumptions,
+\begin{equation}
+J_{\tau,b}^\pi-J_H^\pi
+=\E_\pi\left[\gamma^\tau\bigl(b_\tau(S_\tau)-V_\tau^\pi(S_\tau)\bigr)\right].
+\label{eq:boundary-error}
+\end{equation}
+If $-C\le r_t\le0$ and $b=0$, then
+\begin{equation}
+0\le J_{\tau,0}^\pi-J_H^\pi
+\le C\,\E_\pi\sum_{t=\tau}^{H-1}\gamma^t.
+\label{eq:boundary-bound}
+\end{equation}
+The upper bound is attained when every omitted reward equals $-C$. If $|b_t(s)-V_t^\pi(s)|\le\epsilon$ at all reachable stopping states, then
+\begin{equation}
+|J_{\tau,b}^\pi-J_H^\pi|\le\epsilon\,\E_\pi\gamma^\tau.
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Split the full return into the terms before $\tau$ and those from $\tau$ onward. For each deterministic $t$, the Markov property gives the conditional expected tail $\gamma^tV_t^\pi(S_t)$ given $\mathcal F_t$. The event $\{\tau=t\}$ belongs to $\mathcal F_t$. Multiplying by its indicator and summing over $t=1,\ldots,H$ gives
+\[
+J_H^\pi=\E_\pi\left[\sum_{t<\tau}\gamma^t r_t+\gamma^\tau V_\tau^\pi(S_\tau)\right].
+\]
+Subtracting this equality from the definition of $J_{\tau,b}^\pi$ proves \eqref{eq:boundary-error}. For nonpositive rewards, the omitted tail lies between $-C\sum_{t=\tau}^{H-1}\gamma^t$ and zero, which proves \eqref{eq:boundary-bound}. Constant omitted rewards $-C$ attain the bound. The final inequality uses the assumed pointwise error inside the expectation. Every sum is finite and every term is integrable by boundedness.
+\end{proof}
+
+Zero continuation raises the stopped return in a nonpositive-reward task. The increase depends on which states the policy reaches at stopping. The next example makes its effect on policy choice explicit.
+
+\begin{example}[Reversing a policy ranking]
+\label{ex:stopping}
+Consider an exact deterministic two-step model with $\gamma=0.99$. The first action selects one of two branches. Branch A gives rewards $(-1,-1)$ and runs for two steps. Branch B gives rewards $(-1.5,-4)$, and a fixed gate stops its training segment after the first step. Subsequent actions are immaterial. The two branch-selecting policies have
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Policy & Stopping time & Full return & Zero-boundary return\\
+\midrule
+A & $2$ & $-1.99$ & $-1.99$\\
+B & $1$ & $-5.46$ & $-1.50$\\
+\bottomrule
+\end{tabular}
+\end{center}
+The stopped objective favors B, while the full objective favors A. The dynamics are exact throughout this construction. The gate supplies the objective change.
+\end{example}
+
+\subsection{When the reward origin changes the answer}
+
+Adding a constant to every reward preserves policy rankings in a fixed-horizon task. For a policy-dependent stopping rule, the same shift pays each policy for a different expected duration. Write
+\[
+S_n=\sum_{k=0}^{n-1}\gamma^k,\qquad S_0=0.
+\]
+This definition includes $\gamma=1$, where $S_n=n$.
+
+\begin{theorem}[Reward shifts and stopping boundaries]
+\label{thm:reward-shift}
+Fix a class of policies and keep each policy's stopping rule unchanged when shifting rewards. Keep the boundary values fixed initially. For every constant $c\in\R$,
+\begin{align}
+J_{H,r+c}^\pi&=J_{H,r}^\pi+cS_H,\\
+J_{\tau,r+c,b}^\pi&=J_{\tau,r,b}^\pi+cD_\pi,
+\qquad D_\pi=\E_\pi S_\tau.
+\label{eq:shift-stopped}
+\end{align}
+The stopped objective preserves all pairwise rankings, including ties, for every real shift $c$ if and only if $D_\pi$ is constant across the policy class.
+
+For an arbitrary stopping rule, the boundary transformation
+\begin{equation}
+b'_t(s)=b_t(s)+cS_{H-t}
+\label{eq:boundary-compensation}
+\end{equation}
+makes every stopped path's return increase by $cS_H$. At each reachable stopping boundary, this transformation is necessary for that exact pathwise increase.
+\end{theorem}
+
+\begin{proof}
+A reward shift contributes $c$ at each retained step. Summing its discounted contributions proves both identities. If all $D_\pi$ agree, each policy value receives the same additive constant and its ranking is unchanged. If $D_\pi\ne D_\rho$, the difference between their shifted values is
+\[
+J_{\tau,r,b}^\pi-J_{\tau,r,b}^\rho+c(D_\pi-D_\rho).
+\]
+Its slope in $c$ is nonzero. It takes both positive and negative values as $c$ ranges over $\R$, so preservation of all rankings fails.
+
+For a path stopped at time $t$, \eqref{eq:boundary-compensation} changes its return by
+\[
+cS_t+\gamma^t cS_{H-t}=cS_H.
+\]
+Conversely, demanding this exact increase on that path gives $\gamma^t(b'_t(s)-b_t(s))=c(S_H-S_t)$. Since $\gamma>0$ and $S_H-S_t=\gamma^tS_{H-t}$, division proves necessity at that boundary.
+\end{proof}
+
+In Example~\ref{ex:stopping}, adding $c=1$ changes the stopped values to $0$ for A and $-0.5$ for B. The full objective continues to favor A. Equation~\eqref{eq:boundary-compensation} restores reward-shift invariance for the chosen base boundary. Choosing $b_t=V_t^\pi$ recovers the full objective. More generally, expected recovery holds exactly when the expectation in \eqref{eq:boundary-error} is zero. Reward-shift invariance and full-objective recovery are separate design properties.
+
+The pathwise condition also clarifies what is needed in expectation. If $b'_t=b_t+cS_{H-t}+h_t$ with $h_H=0$, the expected change is $cS_H+\E_\pi[\gamma^\tau h_\tau(S_\tau)]$. A common additive change across policies therefore requires and is implied by policy independence of the latter expectation.
+
+The endpoint $\tau=H$ has an empty tail and zero boundary error. A common fixed $\tau$ preserves reward-shift rankings because every policy has the same $D_\pi$. A policy-dependent stopping rule can also preserve them when these expected discounted durations agree.
+
+\subsection{The corresponding GAE target}
+
+Consider a realized segment ending at $S_\tau$, a fixed critic $V$, and a GAE trace parameter $0\le\lambda\le1$. Compare two target computations on this same segment: one uses boundary bootstrap $b_\tau(S_\tau)$ and the other uses zero. Both end the trace at the segment boundary. The final temporal-difference residual changes by $-\gamma b_\tau(S_\tau)$. Earlier residuals are unchanged, so for $t<\tau$,
+\begin{equation}
+\widehat A_t^{\,0}-\widehat A_t^{\,b}
+=-\gamma(\gamma\lambda)^{\tau-1-t}b_\tau(S_\tau).
+\label{eq:gae-boundary}
+\end{equation}
+At $\lambda=0$, only the final target changes; the exponent-zero factor in \eqref{eq:gae-boundary} is one. This is an exact comparison of targets before advantage normalization. A negative boundary bootstrap raises the zero-boundary advantage. The implementation's reset starts a new segment; its sampled reset state supplies a separate initial condition. It carries no continuation value for the segment that just ended.

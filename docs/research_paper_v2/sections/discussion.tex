@@ -1,0 +1,19 @@
+\section{Design implications}
+\label{sec:discussion}
+
+The analysis points to three concrete questions for world-model policy learning.
+
+\paragraph{What value does the rollout boundary receive?}
+An artificial boundary replaces the remaining return with its assigned value. In a task with nonpositive rewards, zero continuation adds the expected omitted cost to the stopped objective. Equation~\eqref{eq:boundary-error} identifies the exact quantity to approximate or constrain. Equation~\eqref{eq:boundary-compensation} gives a separate consistency test: a harmless change of reward origin should receive the corresponding boundary transformation.
+
+\paragraph{Which gradient components does the weight suppress?}
+Weighting interacts with the policy parameterization. A weight can turn an advantage component with zero original gradient into a nonzero update. It can also alter the geometry within the representable score space. The finite-action criterion in Section~\ref{sec:weighting} separates these effects. A positive lower bound on weights controls their magnitude; the alignment conditions determine their directional effect.
+
+\paragraph{Which performance quantity is improving?}
+Prediction error, model return, return gap, and environment return answer different questions. The Pendulum results illustrate this distinction with matched starts and a common evaluation horizon. A small signed gap can accompany poor control in both systems. Equation~\eqref{eq:return-accounting} keeps environment improvement connected to changes in both model return and optimism.
+
+The existing experiments cover one state-space control task, a fixed learned model, and the recorded policy initializations. The mathematical results cover their stated classes of stopped objectives and local policy updates. Further work can study how these conditions interact with model retraining, shared parameters across decision contexts, and estimated curvature. Those extensions have clear objects to analyze: the boundary approximation error, the score-space residual created by weighting, and the metric used for the update.
+
+\section{Conclusion}
+
+Uncertainty controls enter policy learning through objective choices. Stopping selects a boundary value, and advantage weighting changes the score contributions that form an update. The analysis gives an exact stopping-error formula, a reward-shift criterion, and necessary and sufficient finite-action conditions for universal gradient alignment. Analytical examples expose the consequences when those conditions fail. The continuous-control study gives these questions a concrete implementation and evaluation setting. Together, the results provide a direct way to reason about which parts of imagined learning preserve the intended control objective.

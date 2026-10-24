@@ -1,0 +1,49 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,array,graphicx,microtype,enumitem}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[colorlinks=true,linkcolor=MidnightBlue,citecolor=MidnightBlue,urlcolor=MidnightBlue]{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+\hypersetup{pdftitle={How Uncertainty Controls Change Policy Learning in World Models},pdfauthor={Jiaqi Tang}}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{remark}[theorem]{Remark}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\ip}[2]{\langle #1,#2\rangle}
+\newcommand{\norm}[1]{\lVert #1\rVert}
+\newcommand{\Span}{\operatorname{span}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Sym}{\operatorname{Sym}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\Jenv}{J_{\mathrm{env}}}
+\newcommand{\Jmodel}{J_{\mathrm{model}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\paperlink}[1]{\href{#1}{[paper]}}
+\setlist[itemize]{leftmargin=1.5em,itemsep=2pt,topsep=4pt}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=2pt,topsep=4pt}
+\setlength{\emergencystretch}{2em}
+\title{\textbf{How Uncertainty Controls Change\\Policy Learning in World Models}}
+\author{Jiaqi Tang\\\small University of Illinois Urbana-Champaign\\\small\url{https://github.com/TanhJK728/reliable-world-model-rl}}
+\date{October 24, 2026}
+\begin{document}
+\maketitle
+\input{sections/introduction}
+\input{sections/stopping}
+\input{sections/weighting}
+\input{sections/experiments}
+\input{sections/discussion}
+\input{references}
+\appendix
+\input{sections/appendix}
+\end{document}

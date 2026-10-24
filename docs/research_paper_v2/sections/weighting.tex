@@ -1,0 +1,199 @@
+\section{When positive weights preserve an ascent direction}
+\label{sec:weighting}
+
+A confidence weight changes the size of each action's contribution to a policy update. The contributions are vectors, so preserving the sign of every advantage leaves their combined direction open. We characterize exactly when positive weights preserve alignment for every possible centered advantage at a fixed policy.
+
+\subsection{The policy score space}
+
+Consider one decision state with $n$ actions and a differentiable policy at a reference parameter. Write its probabilities as $p_i>0$, with $\sum_i p_i=1$, and its score vectors as
+\[
+\psi_i=\nabla_\theta\log\pi_\theta(i)\in\R^d,
+\qquad \sum_i p_i\psi_i=0.
+\]
+Hold the positive weights $w_i$ fixed when differentiating. The space of exact centered advantages and the effective parameter space are
+\[
+\mathcal E=\left\{A\in\R^n:\sum_i p_iA_i=0\right\},
+\qquad T=\Span\{\psi_1,\ldots,\psi_n\}.
+\]
+Equip $\mathcal E$ with $\ip{x}{y}_p=\sum_i p_ix_iy_i$ and $T$ with the inherited Euclidean inner product. Define two linear maps from $\mathcal E$ to $T$:
+\begin{equation}
+LA=\sum_i p_iA_i\psi_i=g(A),\qquad
+RA=\sum_i p_iw_iA_i\psi_i=g_w(A).
+\label{eq:gradient-maps}
+\end{equation}
+Every $A\in\mathcal E$ is an exact advantage for the one-step reward $r_i=A_i+c$. Thus quantifying over $\mathcal E$ means asking for a guarantee across all rewards for the fixed policy and weights. In this decision problem, $g$ is the expected-return gradient. A step along $g_w$ has first-order improvement $g^\top g_w$.
+
+Let
+\begin{equation}
+F=\sum_i p_i\psi_i\psi_i^\top,\qquad
+F_w=\sum_i p_iw_i\psi_i\psi_i^\top,\qquad
+m=\sum_i p_iw_i\psi_i.
+\label{eq:fisher-matrices}
+\end{equation}
+If $T\ne\{0\}$, both $F$ and $F_w$ are positive definite on $T$. A nonzero vector in $T$ has a nonzero inner product with at least one spanning score, and all probabilities and weights are positive. All inverses below act on $T$. This convention includes policies with redundant parameters.
+
+For any $g\in T$, the advantage $A_i=\psi_i^\top F^{-1}g$ is centered and satisfies $LA=g$. Hence $L$ is onto. Its kernel consists of advantage components that contribute zero to the original policy gradient. The corresponding score-function subspace is
+\[
+\mathcal S=\left\{(\psi_i^\top v)_{i=1}^n:v\in T\right\}\subseteq\mathcal E.
+\]
+It is the orthogonal complement of $\ker L$ in $\mathcal E$.
+
+\subsection{A necessary and sufficient condition}
+
+\begin{theorem}[Universal Euclidean alignment]
+\label{thm:euclidean}
+Assume $T\ne\{0\}$ and set $B=F_wF^{-1}$. The inequality
+\begin{equation}
+g(A)^\top g_w(A)\ge0\quad\text{for every }A\in\mathcal E
+\label{eq:universal-alignment}
+\end{equation}
+holds if and only if
+\begin{equation}
+\ker L\subseteq\ker R
+\quad\text{and}\quad
+\Sym(B)=\tfrac12(B+B^\top)\succeq0\text{ on }T.
+\label{eq:alignment-criterion}
+\end{equation}
+Strict positivity whenever $g(A)\ne0$ holds if and only if the kernel condition holds and $\Sym(B)\succ0$ on $T$.
+
+The kernel condition has two equivalent forms. First,
+\begin{equation}
+w_i\psi_i-m=B\psi_i\quad\text{for every }i.
+\label{eq:score-identity}
+\end{equation}
+Second, the score-function subspace $\mathcal S$ is invariant under the centered weighting operator
+\[
+Qx=CWx,\qquad Cx=x-\mathbf1\E_p x,\qquad W=\diag(w_1,\ldots,w_n),\quad x\in\mathcal E.
+\]
+When these equivalent conditions hold, $R=BL$.
+\end{theorem}
+
+\begin{proof}
+Suppose \eqref{eq:universal-alignment} holds. For $k\in\ker L$, $x\in\mathcal E$, and every real $t$,
+\[
+(L(x+tk))^\top R(x+tk)=(Lx)^\top Rx+t(Lx)^\top Rk\ge0.
+\]
+The coefficient of $t$ must vanish. Surjectivity of $L$ and $Rk\in T$ then imply $Rk=0$. Under the strict property, choosing $Lx=Rk\ne0$ would also give a negative value for sufficiently negative $t$. Thus the kernel condition is necessary in both cases.
+
+The kernel condition makes $\widetilde B(LA)=RA$ well defined for a unique linear map $\widetilde B:T\to T$. Taking $A_i=\psi_i^\top v$ gives $F_wv=\widetilde BFv$, so $\widetilde B=B$. Consequently,
+\[
+g(A)^\top g_w(A)=g(A)^\top Bg(A)=g(A)^\top\Sym(B)g(A).
+\]
+Every vector in $T$ occurs as $g(A)$. Positive semidefiniteness and positive definiteness therefore give exactly the weak and strict properties, respectively.
+
+Factorization $R=BL$ states that
+\[
+\sum_i p_iA_i(w_i\psi_i-B\psi_i)=0\quad\text{for every centered }A.
+\]
+Each coordinate of the vector in parentheses must be constant across actions: the orthogonal complement of $\mathcal E$ in $L^2(p)$ consists of constants. Averaging identifies that constant as $m$, proving \eqref{eq:score-identity}. Conversely, multiplying \eqref{eq:score-identity} by $p_iA_i$ and summing proves $R=BL$.
+
+Finally, $R=LQ$. For $x,y\in\mathcal E$,
+\[
+\ip{x}{Qy}_p=\sum_i p_iw_ix_iy_i=\ip{Qx}{y}_p,
+\]
+so $Q$ is self-adjoint. The kernel condition is equivalent to invariance of $\ker L$ under $Q$. Self-adjointness makes this equivalent to invariance of its orthogonal complement $\mathcal S$.
+\end{proof}
+
+The first condition has a direct interpretation: whenever two advantages give the same original gradient, they must also give the same weighted gradient. The second condition determines whether the induced map $B$ turns that gradient into a nonnegative direction in the chosen parameter coordinates. Positive eigenvalues of $B$ alone are insufficient for this quadratic-form condition.
+
+Every advantage has the unique decomposition
+\begin{equation}
+A_i=\psi_i^\top F^{-1}g+k_i,\quad k\in\ker L,
+\qquad
+g_w=F_wF^{-1}g+Rk.
+\label{eq:gradient-decomposition}
+\end{equation}
+This displays how weighting can turn a component invisible to the original gradient into a new update. If $Rk\ne0$, choose $g=Rk$, set $x_i=\psi_i^\top F^{-1}g$, and use $A=x-tk$. Then
+\[
+g(A)^\top g_w(A)=g^\top Bg-t\norm{Rk}^2<0
+\]
+for sufficiently large $t$. Scaling this finite advantage and shifting its reward preserves the negative sign, so the failure can occur with bounded nonpositive rewards.
+
+\subsection{What Fisher preconditioning changes}
+
+The Fisher-preconditioned weighted direction is $d_w=F^{-1}g_w$. Its first-order effect on the original return is $g^\top d_w$. This quantity uses the natural-gradient geometry \cite{kakade}.
+
+\begin{theorem}[Universal Fisher alignment]
+\label{thm:fisher}
+Under the assumptions of Theorem~\ref{thm:euclidean}, the following are equivalent:
+\begin{enumerate}
+\item $g(A)^\top F^{-1}g_w(A)\ge0$ for every $A\in\mathcal E$;
+\item $g(A)^\top F^{-1}g_w(A)>0$ whenever $g(A)\ne0$;
+\item $\ker L\subseteq\ker R$.
+\end{enumerate}
+When the kernel condition holds,
+\begin{equation}
+g^\top F^{-1}g_w=g^\top F^{-1}F_wF^{-1}g>0\qquad(g\ne0).
+\label{eq:fisher-ascent}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+For $k\in\ker L$, apply the first assertion to $A=x+tk$. The coefficient of $t$ is $(Lx)^\top F^{-1}Rk$. Surjectivity of $L$ forces $F^{-1}Rk=0$, and invertibility on $T$ forces $Rk=0$. The kernel condition gives $R=F_wF^{-1}L$ by Theorem~\ref{thm:euclidean}. This proves \eqref{eq:fisher-ascent}, whose middle matrix is positive definite. Strict positivity for nonzero gradients implies nonnegativity for all gradients, completing the equivalence.
+\end{proof}
+
+More generally, a fixed symmetric positive-definite preconditioner $M:T\to T$ gives universal weak alignment exactly when the kernel condition holds and $\Sym(MF_wF^{-1})\succeq0$. Replacing this final condition by positive definiteness gives strict alignment. The proof repeats the affine-in-$t$ argument, followed by the quadratic form of $MB$.
+
+Constant weights satisfy both theorems. A full score representation, $\dim T=n-1$, has $\ker L=\{0\}$ and therefore always satisfies the Fisher criterion. Euclidean alignment still requires the symmetric-part condition. If $T=\{0\}$, both gradients vanish; weak alignment holds and the strict statement conditional on $g\ne0$ is vacuous. No inverse is needed in that case.
+
+\subsection{Two exact failures with positive weights}
+
+\begin{example}[A restricted score space]
+\label{ex:scalar-weight}
+Take three equally likely actions at $\theta=0$ in the policy
+\[
+\pi_\theta(i)=\frac{e^{\theta x_i}}{\sum_j e^{\theta x_j}},\qquad x=(-1,0,1).
+\]
+The score is $\psi=x$. Use rewards $r=(-1,-5,0)$, whose exact advantage is $A=(1,-3,2)$, and weights $w=(1,1,1/50)$. Direct substitution gives
+\[
+g=\frac13,\qquad g_w=-\frac8{25},\qquad gg_w=-\frac8{75}<0.
+\]
+Here $F=2/3$, so Fisher preconditioning retains the reversal. Every weight is positive, the advantage is exact, and every reward is nonpositive.
+\end{example}
+
+Three actions are minimal for reversal in this one-state setup. With two actions and nonzero scores, centering gives $\psi_2=-(p_1/p_2)\psi_1$ and $A_2=-(p_1/p_2)A_1$. Substitution yields
+\[
+g_w=(p_2w_1+p_1w_2)g,
+\]
+a positive multiple of $g$. A positive weight floor alone provides no universal guarantee once three actions are available. For any $0<m_0<1$, choose $c,d>0$ with $m_0c<d<c$, and set
+\[
+A=(-c,c+d,-d),\qquad w=(m_0,1,1),\qquad \psi=(-1,0,1),\qquad p_i=1/3.
+\]
+Then $g=(c-d)/3>0$ and $g_w=(m_0c-d)/3<0$.
+
+\begin{example}[A full score space with Euclidean descent]
+\label{ex:full-weight}
+Use uniform probabilities and
+\[
+\psi_1=(1,0)^\top,\quad \psi_2=(0,1)^\top,\quad \psi_3=(-1,-1)^\top,
+\qquad A=(-3,9,-6),\quad w=(1,1/50,1/50).
+\]
+The exponential-family policy $\pi_\theta(i)\propto e^{\theta^\top\psi_i}$ realizes these scores at zero. The rewards $r=A-9=(-12,0,-15)$ realize the stated advantage. The score space has full dimension $n-1=2$, and
+\[
+g=(1,5)^\top,\qquad g_w=(-24/25,1/10)^\top,\qquad g^\top g_w=-23/50.
+\]
+The Fisher matrix and the induced map are
+\[
+F=\frac13\begin{pmatrix}2&1\\1&2\end{pmatrix},\qquad
+B=\begin{pmatrix}101/150&-49/150\\0&1/50\end{pmatrix}.
+\]
+The symmetric part of $B$ has determinant $-1189/90000$. Fisher preconditioning gives
+\[
+g^\top F^{-1}g_w=189/50>0.
+\]
+This example isolates the effect of the parameter-space geometry after the score compatibility condition is satisfied.
+\end{example}
+
+Appendix~\ref{app:gaussian} gives a continuous-action construction with bounded nonpositive rewards and a smooth weight in $(0.02,1]$. Its mean gradient reverses under weighting, including for a tanh-squashed Gaussian actor with a learned scale.
+
+\subsection{Alignment for one specified advantage}
+
+The universal criterion asks for a guarantee across all rewards. For a particular advantage, a simpler identity explains the sign. Write $X=A\psi$, $\bar w=\E_p w$, and $g=\E_pX$. Then
+\begin{equation}
+g^\top g_w=\bar w\norm{g}^2+\Cov_p(w,g^\top X)
+\ge\bar w\norm{g}^2-\sigma_w\sigma_{g^\top X},
+\label{eq:covariance-alignment}
+\end{equation}
+where $\sigma$ denotes standard deviation under $p$. The equality follows by expanding the covariance; the bound is Cauchy--Schwarz. Thus $\bar w\norm{g}^2>\sigma_w\sigma_{g^\top X}$ is a sufficient condition for a strictly positive derivative. The key quantity is how the weight covaries with contributions along the true gradient.
+
+At the reference policy, the exact expected PPO surrogate has derivative $g_w$ when advantages and weights are held fixed and the clipping interval contains one in its interior. Appendix~\ref{app:ppo} proves this local connection and states the effect of advantage centering. The experiments use estimated advantages, minibatches, and repeated optimizer steps. Their outcomes can be interpreted alongside the mechanisms above; identifying a mechanism's contribution to a particular run would require additional measurements.

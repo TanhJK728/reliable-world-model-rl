@@ -2,11 +2,11 @@
 
 # World-Model RL
 
-**Reliable policy learning under imperfect dynamics**
+**How uncertainty controls change policy learning**
 
-Continuous control · Learned world models · Uncertainty · Distribution shift
+Continuous control · Learned world models · Policy gradients · Uncertainty
 
-[Research paper](docs/world_model_rl_study.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#inside-the-method) · [Code](#explore-the-code) · [Get started](#get-started)
+[Research paper](docs/research_paper_v2/research_paper.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#what-the-mathematics-establishes) · [Code](#explore-the-code) · [Get started](#get-started)
 
 </div>
 
@@ -16,7 +16,7 @@ An embodied agent can use a world model to practice before acting. The challenge
 
 This project studies that question in **Pendulum-v1**, a continuous-control task with angle, angular velocity, and bounded torque. It connects **PPO, learned dynamics, imagined policy refinement, and matched evaluation** in a compact PyTorch implementation built from scratch.
 
-**The central finding: model–environment agreement and good control are separate quantities.** A policy can have a small return gap while performing poorly in both worlds. The experiments measure both, then examine how data coverage, rollout length, and uncertainty controls affect the outcome.
+**The research paper studies how uncertainty controls change the learning objective.** It derives the error introduced by rollout boundaries and gives necessary and sufficient conditions for positive weights to preserve gradient alignment at a finite-action decision state. Exact finite-action and Gaussian examples show how weighting can reverse an update. The existing Pendulum experiments connect these questions to continuous control.
 
 | Control | World modeling | Research design |
 | :--- | :--- | :--- |
@@ -25,15 +25,38 @@ This project studies that question in **Pendulum-v1**, a continuous-control task
 
 ## The research question
 
-**When a policy learns inside an imperfect world model, what carries over to the environment?**
+**How do uncertainty-based stopping and advantage weights change what a policy learns?**
 
-The experiment separates three parts of that question:
+The analysis follows three parts of that question:
 
-1. **Prediction:** how does dynamics error change as actions move beyond the model's training data?
-2. **Optimization:** how do rollout length and ensemble disagreement change policy updates?
-3. **Control:** does the resulting policy earn more reward under the environment's dynamics?
+1. **Targets:** what continuation value does an imagined rollout receive when it stops?
+2. **Updates:** when do positive confidence weights preserve an improving policy direction?
+3. **Control:** how do the resulting policies perform under the environment's dynamics?
 
 The world model learns state transitions. Imagined rollouts use the exact Pendulum reward, so the comparison focuses on learned dynamics and policy optimization. Here, **environment return** means evaluation in the original Gymnasium simulator.
+
+## What the mathematics establishes
+
+**Stopping assigns a boundary value.** For a common finite horizon, discount, initial distribution, and dynamics, the difference between a stopped objective and the full return is
+
+```math
+J_{\tau,b}^{\pi}-J_H^{\pi}
+=\mathbb{E}_{\pi}\left[\gamma^{\tau}\left(b_{\tau}(S_{\tau})-V_{\tau}^{\pi}(S_{\tau})\right)\right].
+```
+
+Here, τ is the stopping time, b is the assigned boundary value, and V is the remaining value under the policy. The paper also characterizes when adding a constant to every reward preserves policy rankings under stopping.
+
+**Positive weights can change the direction of learning.** With exact centered advantages A and policy scores ψ, compare the original gradient with its weighted version:
+
+```math
+g=\mathbb{E}[A\psi],\qquad g_w=\mathbb{E}[wA\psi].
+```
+
+At one finite-action decision state, the paper gives necessary and sufficient conditions for fixed positive weights to preserve nonnegative gradient alignment for every centered advantage. The conditions separate the policy's score space from the geometry of its parameter update. Fisher preconditioning gives strict ascent under the score-space condition whenever the original gradient is nonzero.
+
+Exact finite-action and bounded-reward Gaussian examples show how positive weights can produce a direction that lowers the original return. The proofs analyze these mechanisms directly; the existing experiments report the combined behavior of the implemented learning rules.
+
+[Read the research paper](docs/research_paper_v2/research_paper.pdf) · [LaTeX source](docs/research_paper_v2/main.tex) · [Original study](docs/world_model_rl_study.pdf)
 
 ## What the experiments show
 
@@ -41,25 +64,19 @@ The world model learns state transitions. Imagined rollouts use the exact Pendul
 
 Each policy is evaluated under learned and environment dynamics using the same initial states, deterministic actions, and 200-step horizon. Define
 
-$$
+```math
 G(\pi)=J_{\mathrm{model}}(\pi)-J_{\mathrm{env}}(\pi).
-$$
+```
 
 A positive gap means the model overestimates the policy's return. The code calls this quantity the *exploitation gap*.
 
 For any policy update, let $\Delta$ denote the change from the old policy to the new one. The definition gives a useful accounting identity:
 
-
 ```math
-\begin{aligned}
-\underbrace{\Delta J_{\mathrm{env}}}_{\text{gain in the environment}}
-&=
-\underbrace{\Delta J_{\mathrm{model}}}_{\text{gain in imagination}}
-&\quad - \underbrace{\Delta G}_{\text{change in model optimism}}
-\end{aligned}
+\Delta J_{\mathrm{env}}=\Delta J_{\mathrm{model}}-\Delta G.
 ```
 
-This explains why both return and gap matter when judging an update.
+This separates predicted improvement from changes in model optimism. The experiments report both environment performance and the return gap.
 
 The main comparison starts from a partially trained PPO policy and refines it for approximately 500,000 imagined transitions. The dynamics model stays fixed and was trained on data from a stronger policy.
 
@@ -75,7 +92,7 @@ Values are mean ± sample standard deviation across **three refinement seeds**, 
 
 ![Model and environment returns for the starting policy and four refinement methods, with error bars across refinement seeds.](runs/comparison_seeds/model_vs_real_return_seeds.png)
 
-**All four methods reduce environment return from the starting policy in this setting.** Uncertainty termination shortens rollouts to about four steps. Advantage weighting also produces poor control despite a small return gap. These results make the trade-off concrete: uncertainty controls change the training signal, and their value must be judged by the resulting behavior.
+**All four methods reduce mean environment return from the starting policy in this setting.** Uncertainty termination shortens rollouts to about four steps. Advantage weighting also produces poor control despite a small return gap. These results make the trade-off concrete: uncertainty controls change the training signal, and their value must be judged by the resulting behavior.
 
 With the stronger policy as the starting point, fixed H = 20 and uncertainty termination retain returns near −150. Fixed H = 5 and weighted advantages reach about −296 and −289. This comparison uses one refinement run per method.
 
@@ -106,13 +123,12 @@ Prediction error and disagreement both increase outside the policy-data distribu
 
 The policy samples a Gaussian latent action and maps it to the torque range:
 
-$$
+```math
 z\sim\mathcal N\!\left(\mu_\theta(s),\sigma_\theta^2\right),
 \qquad a=2\tanh z.
-$$
+```
 
-The implementation includes the change-of-variables correction in the action log probability, GAE advantages, clipped policy and value objectives, and KL-based early stopping. Reward normalization scales the training signal. Evaluation reports the original environment reward.
-
+The implementation includes the change-of-variables correction in the action log probability, GAE advantages, clipped policy and value objectives, and KL-based early stopping. Initial PPO training uses reward normalization. Imagined refinement uses original rewards and initializes both actor and critic from the starting checkpoint. Evaluation reports the original environment reward.
 
 <details>
 <summary><strong>From the action density to the PPO update</strong></summary>
@@ -157,19 +173,18 @@ The implementation maximizes this surrogate with normalized GAE advantages and j
 
 [Policy and density](ppo_core.py) · [PPO training](train_ppo.py)
 
-
 ### Dynamics with physical state geometry
 
 The observation is $s=(\cos\varphi,\sin\varphi,\dot\varphi)$. Each ensemble member learns a normalized state increment, then projects its prediction:
 
-$$
+```math
 \hat s_{t+1}^{(j)}=\Pi\!\left(s_t+f_{\phi_j}(s_t,a_t)\right),
 \qquad j=1,\ldots,5.
-$$
+```
 
 Here, $f_{\phi_j}$ includes input normalization and output rescaling. The projection normalizes each member's angular coordinates and clips angular velocity to the environment range. The ensemble mean supplies the next imagined state.
 
-Each member trains on a bootstrap sample. Splitting complete episodes between training and validation keeps neighboring transitions from the same episode together.
+Each member trains on a bootstrap sample. An episode-grouped split keeps all recorded transitions from each episode in the same subset.
 
 [Dynamics and projection](world_model.py) · [Ensemble training](train_world_model.py)
 
@@ -177,9 +192,9 @@ Each member trains on a bootstrap sample. Splitting complete episodes between tr
 
 Disagreement among the five predictions supplies an uncertainty proxy:
 
-$$
+```math
 u(s,a)=\frac{1}{3}\sum_{k=1}^{3}\mathrm{Var}_{j}\!\left[\hat s_{k}^{(j)}\right].
-$$
+```
 
 The experiments compare fixed rollouts against two ways to use this signal:
 
@@ -200,7 +215,7 @@ Termination also cuts the critic's continuation value at the segment boundary. W
 | [`imagined_env.py`](imagined_env.py) · [`train_imagined_ppo.py`](train_imagined_ppo.py) | Model-based rollouts and the four refinement variants |
 | [`compare_imagined_methods.py`](compare_imagined_methods.py) · [`aggregate_comparison.py`](aggregate_comparison.py) | Paired evaluation and summaries across seeds |
 
-The [research paper](docs/world_model_rl_study.pdf) connects this control study with World4RL and WoVR, two approaches to world-model-based policy refinement for robotic manipulation. See the [file map](PROJECT_FILES.md) for the remaining utilities.
+The [research paper](docs/research_paper_v2/research_paper.pdf) characterizes when positive advantage weights preserve alignment with the original policy gradient and derives how rollout boundaries change the learning objective. It includes complete proofs, finite-action and Gaussian examples, and the existing Pendulum control study. See the [file map](PROJECT_FILES.md) for the remaining utilities.
 
 ## Get started
 
@@ -208,7 +223,7 @@ The figures and result tables above are available directly in the repository.
 
 ```bash
 git clone https://github.com/TanhJK728/reliable-world-model-rl.git
-cd world-model-rl
+cd reliable-world-model-rl
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
