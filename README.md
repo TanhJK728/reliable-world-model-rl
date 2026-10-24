@@ -1,311 +1,220 @@
-# Reliable Reinforcement Learning under Imperfect World Models
+<div align="center">
 
-A compact, from-scratch, fully reproducible study of one question in model-based RL:
+# World-Model RL
 
-> **When a policy is optimized *inside* a learned world model, when does it genuinely improve — and when does it merely exploit the model's errors?**
+**Reliable policy learning under imperfect dynamics**
 
-The project builds the whole stack from scratch in PyTorch — continuous-control PPO, a bootstrapped dynamics ensemble, and uncertainty-aware policy refinement inside the learned model — on `Pendulum-v1`, and then measures the **exploitation gap** (how much better a policy looks in imagination than in reality) under matched conditions.
+Continuous control · Learned world models · Uncertainty · Distribution shift
 
-It is deliberately a **state-space, dynamics-model MBRL** study (in the spirit of PETS / MBPO / Dreamer's imagination step), **not** a generative video world model (like Cosmos). The point is the *RL-reliability mechanism* — long-horizon error accumulation, epistemic uncertainty, and policy-induced distribution shift — which is transferable across world-model backbones.
+[Technical report](docs/world_model_rl_study.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#inside-the-method) · [Code](#explore-the-code) · [Get started](#get-started)
 
----
+</div>
 
-## TL;DR — what the experiments show
+![Learn from experience, refine a policy inside a five-model dynamics ensemble, and compare learned-model and environment returns from matched initial states.](docs/assets/research-overview.svg)
 
-1. **PPO solves Pendulum from scratch** (3 seeds): deterministic return **−153 ± 4** vs random **−1199**. Getting there required a non-obvious fix — **reward normalization** — without which PPO plateaus at ~−1000 (see [§Phase 1](#phase-1--continuous-control-ppo-from-scratch)).
-2. **A dynamics ensemble trained only on expert data is extremely accurate on-distribution and fails off-distribution**, exactly as epistemic-uncertainty theory predicts: one-step MSE **policy 2.0×10⁻⁶ ≪ random 3.0×10⁻³ < OOD 5.2×10⁻³** (≈1500× / 2600×), and ensemble disagreement tracks the same ordering ([§Phase 2](#phase-2--learned-dynamics-ensemble)).
-3. **The exploitation gap is real and grows with rollout horizon**, and — the honest headline — **uncertainty calibrated on a narrow distribution does not transfer** to refining an off-distribution policy: it truncates rollouts so aggressively (adaptive horizon collapses 20 → 4.3) that it destroys the learning signal ([§Phase 3–4](#phase-3--policy-refinement-inside-the-world-model)).
+An embodied agent can use a world model to practice before acting. The challenge is deciding how much of that practice will help in the environment.
 
-The third result is a genuine reliability *failure mode*, analyzed rather than hidden — see [§Key finding](#key-finding-two-regimes-of-model-based-refinement) and [§Limitations & future work](#limitations--future-work).
+This project studies that question in **Pendulum-v1**, a continuous-control task with angle, angular velocity, and bounded torque. It connects **PPO, learned dynamics, imagined policy refinement, and matched evaluation** in a compact PyTorch implementation built from scratch.
 
----
+**The central finding: model–environment agreement and good control are separate quantities.** A policy can have a small return gap while performing poorly in both worlds. The experiments measure both, then examine how data coverage, rollout length, and uncertainty controls affect the outcome.
 
-## Table of contents
+| Control | World modeling | Research design |
+| :--- | :--- | :--- |
+| Tanh-Gaussian PPO with GAE and reward normalization | Five dynamics models with state geometry constraints | Four refinement methods, two policy initializations, paired evaluation |
+| **−153.0 ± 4.4** return across three PPO seeds | Policy, random-action, and extreme-torque datasets | **200-step** comparisons from the same initial states |
 
-- [Repository layout](#repository-layout)
-- [Setup](#setup)
-- [Reproduce everything](#reproduce-everything)
-- [Phase 1 — Continuous-control PPO from scratch](#phase-1--continuous-control-ppo-from-scratch)
-- [Phase 2 — Learned dynamics ensemble](#phase-2--learned-dynamics-ensemble)
-- [Phase 3 — Policy refinement inside the world model](#phase-3--policy-refinement-inside-the-world-model)
-- [Phase 4 — The exploitation gap](#phase-4--the-exploitation-gap)
-- [Key finding: two regimes of model-based refinement](#key-finding-two-regimes-of-model-based-refinement)
-- [Limitations & future work](#limitations--future-work)
-- [Scope & honesty statement](#scope--honesty-statement)
+## The research question
 
----
+**When a policy learns inside an imperfect world model, what carries over to the environment?**
 
-## Repository layout
+The experiment separates three parts of that question:
 
-```
-world_model_rl_complete/
-├── ppo_core.py               # shared: actor-critic, tanh-Gaussian policy, eval, device
-├── train_ppo.py              # Phase 1: real-environment PPO (+ reward-norm / LR flags)
-├── evaluate_ppo.py           # Phase 1: deterministic + random-policy evaluation
-├── plot_ppo_results.py       # Phase 1: multi-seed learning curve & eval bars
-│
-├── collect_transitions.py    # Phase 2: policy / random / OOD transition datasets
-├── world_model.py            # Phase 2: 5-member Δ-state dynamics ensemble
-├── train_world_model.py      # Phase 2: bootstrap training + uncertainty calibration
-├── evaluate_world_model.py   # Phase 2: one-step & multi-step rollout error
-│
-├── imagined_env.py           # Phase 3: vectorized imagined env (learned dynamics + exact reward)
-├── train_imagined_ppo.py     # Phase 3: fixed / uncertainty / weighted refinement
-├── compare_imagined_methods.py  # Phase 4: 200-step model-vs-real, same initial states
-├── aggregate_comparison.py   # Phase 4: seed-level mean±std aggregation & error-bar plots
-│
-├── run_pipeline.sh           # end-to-end driver (Phase 1 uses the solved-Pendulum config)
-└── runs/, data/              # outputs (figures + CSV/JSON committed; .pt/.npz regenerable)
-```
+1. **Prediction:** how does dynamics error change as actions move beyond the model's training data?
+2. **Optimization:** how do rollout length and ensemble disagreement change policy updates?
+3. **Control:** does the resulting policy earn more reward under the environment's dynamics?
 
----
+The world model learns state transitions. Imagined rollouts use the exact Pendulum reward, so the comparison focuses on learned dynamics and policy optimization. Here, **environment return** means evaluation in the original Gymnasium simulator.
 
-## Setup
+## What the experiments show
+
+### 1. Measure performance alongside the return gap
+
+Each policy is evaluated under learned and environment dynamics using the same initial states, deterministic actions, and 200-step horizon. Define
+
+$$
+G(\pi)=J_{\mathrm{model}}(\pi)-J_{\mathrm{env}}(\pi).
+$$
+
+A positive gap means the model overestimates the policy's return. The code calls this quantity the *exploitation gap*.
+
+For any policy update, let $\Delta$ denote the change from the old policy to the new one. The definition gives a useful accounting identity:
+
+$$
+\underbrace{\Delta J_{\mathrm{env}}}_{\text{gain in the environment}}
+=
+\underbrace{\Delta J_{\mathrm{model}}}_{\text{gain in imagination}}
+-
+\underbrace{\Delta G}_{\text{change in model optimism}}.
+$$
+
+This explains why both return and gap matter when judging an update.
+
+The main comparison starts from a partially trained PPO policy and refines it for approximately 500,000 imagined transitions. The dynamics model stays fixed and was trained on data from a stronger policy.
+
+| Refinement method | Environment return ↑ | Model − environment return | Final rollout length |
+| :--- | ---: | ---: | ---: |
+| **Starting policy** | **−576.4** | −3.0 | — |
+| Fixed horizon, H = 5 | −792.4 ± 248.7 | +20.0 ± 22.2 | 5.0 |
+| Fixed horizon, H = 20 | −753.8 ± 105.5 | +27.7 ± 20.7 | 20.0 |
+| Uncertainty termination | −1472.7 ± 24.1 | +8.9 ± 25.6 | 4.3 |
+| Uncertainty-weighted advantage | −1462.1 ± 4.2 | −13.4 ± 1.2 | 20.0 |
+
+Values are mean ± sample standard deviation across **three refinement seeds**, each evaluated on 50 matched episodes. The starting policy is one shared checkpoint. Final rollout length averages the last 20 completed training segments per seed.
+
+![Model and environment returns for the starting policy and four refinement methods, with error bars across refinement seeds.](runs/comparison_seeds/model_vs_real_return_seeds.png)
+
+**All four methods reduce environment return from the starting policy in this setting.** Uncertainty termination shortens rollouts to about four steps. Advantage weighting also produces poor control despite a small return gap. These results make the trade-off concrete: uncertainty controls change the training signal, and their value must be judged by the resulting behavior.
+
+With the stronger policy as the starting point, fixed H = 20 and uncertainty termination retain returns near −150. Fixed H = 5 and weighted advantages reach about −296 and −289. This comparison uses one refinement run per method.
+
+[Three-seed results](runs/comparison_seeds/comparison_aggregated.csv) · [Strong-policy comparison](runs/comparison/comparison.md)
+
+### 2. Connect prediction error to data coverage
+
+The ensemble trains on a 60,000-transition dataset collected by the strong PPO policy, split by episode into training and validation. Two additional datasets probe random actions and extreme torques.
+
+| Evaluation dataset | Transitions | One-step state MSE ↓ | Mean ensemble disagreement |
+| :--- | ---: | ---: | ---: |
+| Policy data | 60,000 | 1.96 × 10⁻⁶ | 1.17 × 10⁻⁶ |
+| Uniform random actions | 30,000 | 2.97 × 10⁻³ | 2.19 × 10⁻⁴ |
+| Extreme torques | 30,000 | 5.17 × 10⁻³ | 3.85 × 10⁻⁴ |
+
+Prediction error and disagreement both increase outside the policy-data distribution. The policy row evaluates the full source dataset, including training transitions. Together, these measurements motivate checking uncertainty on the states and actions a refining policy actually visits.
+
+| Learning a control policy | Predicting over longer rollouts |
+| :---: | :---: |
+| ![PPO learning curves across three seeds.](runs/ppo_summary/learning_curve_mean_std.png) | ![Horizon-averaged squared state error for policy, random-action, and extreme-torque data.](runs/world_model_eval/rollout_error.png) |
+| PPO reaches **−153.0 ± 4.4** across seed means, with 30 evaluation episodes per seed. Random actions average **−1198.6**. | Policy-data errors remain below both shifted datasets at all measured horizons. The plotted error averages squared state distance over the rollout. |
+
+[PPO evaluation](runs/ppo_summary/evaluation.csv) · [One-step prediction](runs/world_model_eval/one_step_results.csv) · [Rollout prediction](runs/world_model_eval/rollout_results.csv)
+
+## Inside the method
+
+### Continuous control with bounded actions
+
+The policy samples a Gaussian latent action and maps it to the torque range:
+
+$$
+z\sim\mathcal N\!\left(\mu_\theta(s),\sigma_\theta^2\right),
+\qquad a=2\tanh z.
+$$
+
+The implementation includes the change-of-variables correction in the action log probability, GAE advantages, clipped policy and value objectives, and KL-based early stopping. Reward normalization scales the training signal. Evaluation reports the original environment reward.
+
+<details>
+<summary><strong>From the action density to the PPO update</strong></summary>
+
+For Pendulum's scalar action, the transformed density is
+
+$$
+\log\pi_\theta(a\mid s)
+=\log\mathcal N(z;\mu_\theta(s),\sigma_\theta^2)
+-\log\!\left(2(1-\tanh^2 z)\right).
+$$
+
+The mean depends on the state. The learned standard deviation is shared across states. The code adds a small numerical stabilizer inside the logarithm.
+
+PPO uses the corrected density to form the likelihood ratio
+
+$$
+\rho_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_{\mathrm{old}}}(a_t\mid s_t)}.
+$$
+
+$$
+L^{\mathrm{clip}}=\mathbb E_t\!\left[
+\min\!\left(\rho_t\hat A_t,\mathrm{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t\right)
+\right].
+$$
+
+The implementation maximizes this surrogate with normalized GAE advantages and jointly fits the critic.
+
+[Policy and density](ppo_core.py) · [PPO training](train_ppo.py)
+
+</details>
+
+### Dynamics with physical state geometry
+
+The observation is $s=(\cos\varphi,\sin\varphi,\dot\varphi)$. Each ensemble member learns a normalized state increment, then projects its prediction:
+
+$$
+\hat s_{t+1}^{(j)}=\Pi\!\left(s_t+f_{\phi_j}(s_t,a_t)\right),
+\qquad j=1,\ldots,5.
+$$
+
+Here, $f_{\phi_j}$ includes input normalization and output rescaling. The projection normalizes each member's angular coordinates and clips angular velocity to the environment range. The ensemble mean supplies the next imagined state.
+
+Each member trains on a bootstrap sample. Splitting complete episodes between training and validation keeps neighboring transitions from the same episode together.
+
+[Dynamics and projection](world_model.py) · [Ensemble training](train_world_model.py)
+
+### Uncertainty as a control on learning
+
+Disagreement among the five predictions supplies an uncertainty proxy:
+
+$$
+u(s,a)=\frac{1}{3}\sum_{k=1}^{3}\mathrm{Var}_{j}\!\left[\hat s_{k}^{(j)}\right].
+$$
+
+The experiments compare fixed rollouts against two ways to use this signal:
+
+- **Terminate:** end an imagined segment when disagreement exceeds the validation-set 95th percentile, $\tau\approx6.63\times10^{-6}$, or the horizon limit.
+- **Weight:** multiply normalized policy advantages by $w_t=\max\{0.02,\exp(-\beta u_t/\tau)\}$ while retaining the full rollout.
+
+Termination also cuts the critic's continuation value at the segment boundary. Weighting acts on the policy objective while the critic keeps its usual loss. These choices connect uncertainty directly to credit assignment and optimization.
+
+[Imagined environment](imagined_env.py) · [Policy refinement](train_imagined_ppo.py)
+
+## Explore the code
+
+| Start here | What to look for |
+| :--- | :--- |
+| [`ppo_core.py`](ppo_core.py) · [`train_ppo.py`](train_ppo.py) | Action distributions, actor–critic learning, reward scaling |
+| [`collect_transitions.py`](collect_transitions.py) | Policy, random-action, and extreme-torque data collection |
+| [`world_model.py`](world_model.py) · [`train_world_model.py`](train_world_model.py) | Residual dynamics, state projection, ensemble disagreement |
+| [`imagined_env.py`](imagined_env.py) · [`train_imagined_ppo.py`](train_imagined_ppo.py) | Model-based rollouts and the four refinement variants |
+| [`compare_imagined_methods.py`](compare_imagined_methods.py) · [`aggregate_comparison.py`](aggregate_comparison.py) | Paired evaluation and summaries across seeds |
+
+The [technical report](docs/world_model_rl_study.pdf) connects this control study with World4RL and WoVR, two approaches to world-model-based policy refinement for robotic manipulation. See the [file map](PROJECT_FILES.md) for the remaining utilities.
+
+## Get started
+
+The figures and result tables above are available directly in the repository.
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt          # torch, gymnasium[classic-control], numpy, matplotlib, pandas
+git clone https://github.com/TanhJK728/world-model-rl.git
+cd world-model-rl
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-**macOS + conda note.** If you hit `OMP: Error #15: ... libomp.dylib already initialized`, export this once (already exported inside `run_pipeline.sh`):
+To train a new PPO policy with the reported configuration, choose a fresh output directory:
 
 ```bash
-export KMP_DUPLICATE_LIB_OK=TRUE
+RUN_DIR="runs/manual_$(date +%Y%m%d_%H%M%S)"
+python train_ppo.py \
+  --seed 0 --total-timesteps 1000000 \
+  --anneal-lr 0 --ent-coef 0.01 --normalize-reward 1 \
+  --output-dir "$RUN_DIR" --device cpu
 ```
 
-CPU is the default and is fast enough here (~10.5k env-steps/s; a 1M-step PPO seed takes ~90 s). `--device mps` / `--device cuda` are supported.
+CPU, CUDA, and Apple MPS are supported. Model checkpoints (`.pt`) and transition arrays (`.npz`) are generated locally. [`run_pipeline.sh`](run_pipeline.sh) records the full sequence for the strong-policy experiment and writes to fixed paths under `runs/` and `data/`.
 
----
+## Questions to take further
 
-## Reproduce everything
+- **Broader experience:** how does mixing expert and exploratory data change model error and downstream control?
+- **Adaptive uncertainty:** how should rollout thresholds change as the policy visits new states?
+- **Iterative learning:** when should an agent collect more environment data and update its world model?
+- **Richer observations:** which findings carry over to latent dynamics and vision-based manipulation?
 
-```bash
-bash run_pipeline.sh          # Phase 1→4 with the solved-Pendulum PPO config
-```
-
-Or run phases individually — every command is in the phase sections below. The exploitation-gap study of Phase 4 has two regimes; the "off-distribution" regime is reproduced in [§Phase 4](#phase-4--the-exploitation-gap).
-
----
-
-## Phase 1 — Continuous-control PPO from scratch
-
-**Environment.** `Pendulum-v1`: observation $s_t=(\cos\theta_t,\sin\theta_t,\dot\theta_t)$, torque $a_t\in[-2,2]$, reward
-
-$$r_t = -\big(\theta_t^2 + 0.1\dot\theta_t^2 + 0.001 a_t^2\big).$$
-
-**Policy.** A tanh-squashed Gaussian. The network outputs $\mu_\theta(s),\sigma_\theta(s)$; we sample $z\sim\mathcal N(\mu_\theta,\sigma_\theta^2)$ and squash
-
-$$a = a_{\text{scale}}\tanh(z) + a_{\text{bias}}.$$
-
-The change of variables requires a log-det-Jacobian correction to the log-probability:
-
-$$\log\pi_\theta(a\mid s) = \log\mathcal N(z;\mu_\theta,\sigma_\theta^2) - \sum_i \log\big(a_{\text{scale}}(1-\tanh^2 z_i)\big).$$
-
-At evaluation we use the deterministic actor mean $a = a_{\text{scale}}\tanh(\mu_\theta(s)) + a_{\text{bias}}$.
-
-**Advantage estimation (GAE-λ).** With $\delta_t = r_t + \gamma V(s_{t+1})(1-d_{t+1}) - V(s_t)$,
-
-$$\hat A_t = \sum_{l\ge 0}(\gamma\lambda)^l \delta_{t+l},\qquad \hat R_t = \hat A_t + V(s_t).$$
-
-**Clipped PPO objective.** With ratio $\rho_t(\theta)=\dfrac{\pi_\theta(a_t\mid s_t)}{\pi_{\theta_{\text{old}}}(a_t\mid s_t)}$ and normalized advantages,
-
-$$L^{\text{clip}} = \mathbb E\Big[\min\big(\rho_t\hat A_t, \text{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t\big)\Big],$$
-
-plus a clipped value loss and a target-KL early stop. (All implemented in [`train_ppo.py`](train_ppo.py).)
-
-### The non-obvious fix: reward normalization
-
-Out of the box (200k steps, LR annealed to 0, no reward scaling) PPO **plateaus at ~−1000**, barely above random. Diagnosis: unnormalized Pendulum returns are $O(10^3)$, so the critic's `value_loss` is ~2000–4000 → noisy critic → noisy advantages → stalled policy learning. Ablation:
-
-| Config | Result (return) |
-|---|---|
-| default (200k, anneal→0, ent 0, no norm) | ~−1000 |
-| constant LR + `ent-coef 0.01`, **no** reward norm | ~−580 (best) |
-| constant LR + `ent-coef 0` | collapses to ~−1000 (no exploration) |
-| **constant LR + `ent-coef 0.01` + reward norm** | **−153** ✅ |
-
-`train_ppo.py` adds two flags: `--anneal-lr {0,1}` and `--normalize-reward {0,1}`. Reward normalization wraps **only the training reward** (Gymnasium `NormalizeReward`); observations are untouched, so the saved policy interface — and the entire downstream world-model pipeline — is unaffected. `RecordEpisodeStatistics` (inner wrapper) keeps logged returns on the true environment scale. It drops `value_loss` from ~3000 to ~0.05.
-
-```bash
-for seed in 0 1 2; do
-  python train_ppo.py --seed $seed --total-timesteps 1000000 \
-    --anneal-lr 0 --ent-coef 0.01 --normalize-reward 1 \
-    --output-dir runs/ppo_seed$seed --device cpu
-done
-python evaluate_ppo.py --checkpoints runs/ppo_seed{0,1,2}/checkpoint.pt \
-  --episodes 30 --output runs/ppo_summary/evaluation.csv
-python plot_ppo_results.py --metrics runs/ppo_seed{0,1,2}/metrics.csv \
-  --evaluation runs/ppo_summary/evaluation.csv --output-dir runs/ppo_summary
-```
-
-### Results
-
-| Policy | Deterministic return (30 ep) |
-|---|---|
-| PPO seed 0 | −148.7 ± 94.4 |
-| PPO seed 1 | −152.7 ± 100.9 |
-| PPO seed 2 | −157.5 ± 100.5 |
-| **across seeds** | **−153.0 ± 4.4** |
-| random baseline | −1198.6 ± 280.7 |
-
-The learning curve shows the textbook Pendulum shape: a sharp phase transition at ~400–500k steps, then a stable ~−150 plateau across seeds.
-
-![PPO learning curve](runs/ppo_summary/learning_curve_mean_std.png)
-
-Files: [`runs/ppo_summary/evaluation.csv`](runs/ppo_summary/evaluation.csv), `learning_curve_mean_std.png`, `evaluation_bar.png`.
-
----
-
-## Phase 2 — Learned dynamics ensemble
-
-### What "world model" means here
-
-A **learned state-space dynamics model**: an ensemble of $K=5$ MLPs that predict the **state delta**, not the absolute next state:
-
-$$\hat s_{t+1}^{(j)} = s_t + f_{\theta_j}(s_t,a_t),\qquad \Delta s_t = s_{t+1}-s_t,\quad j=1,\dots,K.$$
-
-Predicting $\Delta s$ (with input/target normalization) is easier and more accurate than predicting $s_{t+1}$ directly. After each model step, the `(cos θ, sin θ)` components are re-projected onto the unit circle, $(\hat c,\hat s)\leftarrow (\hat c,\hat s)/\sqrt{\hat c^2+\hat s^2}$, so long rollouts stay on the valid manifold.
-
-**Three design choices that make the study clean:**
-
-- **No learned reward.** Imagined rollouts use the *exact* Pendulum reward. This isolates any policy exploitation to **dynamics-model error**, not reward-model error.
-- **Bootstrap ensemble + episode-level split.** Each member trains on a bootstrap resample $D_j\sim\text{Bootstrap}(D_{\text{train}})$; the train/validation split is by whole episode, so adjacent transitions of one trajectory never straddle the split.
-- **Ensemble disagreement = epistemic uncertainty:**
-
-$$u_t = \mathrm{mean}_k \mathrm{Var}_j\big[\hat s_{t+1,k}^{(j)}\big],$$
-
-calibrated on the validation set into quantiles $q_{50},q_{90},q_{95},q_{99}$. Here $q_{95}=6.63\times10^{-6}$ — the default rollout-termination threshold in Phase 3.
-
-### Datasets & the distribution-shift hypothesis
-
-Three datasets are collected from the solved seed-0 policy region and its complement:
-
-| Dataset | Actions | mean reward |
-|---|---|---|
-| `policy` (60k) | stochastic PPO policy | −0.9 (near-upright, low cost) |
-| `random` (30k) | $a\sim U[-2,2]$ | −6.3 |
-| `ood` (30k) | extreme torques $\lvert a\rvert\in[0.85,1.0]\cdot a_{\max}$ | −6.3 |
-
-```bash
-python collect_transitions.py --mode policy --checkpoint runs/ppo_seed0/checkpoint.pt --steps 60000 --output data/policy.npz
-python collect_transitions.py --mode random --steps 30000 --output data/random.npz
-python collect_transitions.py --mode ood    --steps 30000 --output data/ood.npz
-python train_world_model.py --datasets data/policy.npz --ensemble-size 5 --epochs 80 --output-dir runs/world_model
-python evaluate_world_model.py --checkpoint runs/world_model/world_model.pt \
-  --datasets data/policy.npz data/random.npz data/ood.npz --horizons 1,5,10,20 --output-dir runs/world_model_eval
-```
-
-### Results — the model is accurate exactly where it was trained
-
-All 5 members early-stop cleanly (val MSE ~2–4×10⁻⁶). Trained **only on `policy` data**, the model's error under distribution shift is dramatic:
-
-| Source | one-step MSE | vs policy | mean ensemble uncertainty |
-|---|---|---|---|
-| policy | 1.96×10⁻⁶ | 1× | 1.2×10⁻⁶ |
-| random | 2.97×10⁻³ | ~1500× | 2.2×10⁻⁴ |
-| ood | 5.17×10⁻³ | ~2600× | 3.9×10⁻⁴ |
-
-The multi-step cumulative error $E_H=\frac1H\sum_{h=1}^{H}\lVert\hat s_{t+h}-s_{t+h}\rVert_2^2$ stays flat for `policy` and diverges for `random`/`ood`, with the gap compounding in $H$:
-
-![World-model error accumulation](runs/world_model_eval/rollout_error.png)
-
-Crucially, **ensemble disagreement rises in the same order** (policy ≪ random < ood), so the uncertainty signal is a usable proxy for where the model can be trusted. Files: [`one_step_results.csv`](runs/world_model_eval/one_step_results.csv), [`rollout_results.csv`](runs/world_model_eval/rollout_results.csv).
-
----
-
-## Phase 3 — Policy refinement inside the world model
-
-[`imagined_env.py`](imagined_env.py) is a vectorized "imagined environment": at each step the policy acts, the **exact** reward is applied, the ensemble mean gives the next state, and the ensemble variance gives $u_t$. A real PPO checkpoint **warm-starts** the policy — this is RL *post-training* inside a learned model. Four methods:
-
-- **Fixed H=5 / H=20** — imagined rollouts of fixed length. Longer $H$ ⇒ stronger credit assignment but more model-error accumulation.
-- **Uncertainty termination** — cut the rollout the moment $u_t>\tau$ (default $\tau=q_{95}$), giving an *adaptive* horizon $H_t=\min\lbrace H_{\max}, \text{first } t: u_t>\tau\rbrace$.
-- **Weighted advantage** — keep full horizon but down-weight uncertain transitions:
-
-$$\tilde A_t = w_t \hat A_t,\qquad w_t=\max\big(0.02, \exp(-\beta u_t/\tau)\big).$$
-
-The floor $0.02$ prevents high-uncertainty transitions from contributing exactly zero gradient.
-
-```bash
-python train_imagined_ppo.py --world-model runs/world_model/world_model.pt \
-  --state-dataset data/policy.npz --init-checkpoint runs/ppo_seed0/checkpoint.pt \
-  --method uncertainty --horizon 20 --output-dir runs/imagined_uncertainty   # etc.
-```
-
----
-
-## Phase 4 — The exploitation gap
-
-Short imagined-segment returns are **not** comparable to 200-step episode returns. So every policy is evaluated from the **same initial states** for a common 200-step horizon in both worlds:
-
-$$J_{\text{model}}(\pi)=\tfrac1N\sum_i R^{(i)}_{\text{model}},\quad J_{\text{real}}(\pi)=\tfrac1N\sum_i R^{(i)}_{\text{real}},\quad \textbf{Exploitation Gap}=J_{\text{model}}(\pi)-J_{\text{real}}(\pi).$$
-
-A positive gap means the policy looks better in imagination than in reality — it is exploiting model error.
-
-### Regime A — refine the *in-distribution* (near-optimal) policy
-
-Warm-start from the solved seed-0 policy (the same policy that generated the model's training data), 100k imagined steps.
-
-| Method | Model return | Real return | Exploitation gap | Mean horizon |
-|---|--:|--:|--:|--:|
-| Real PPO seed 0 | −150.6 | −150.5 | −0.12 | — |
-| Fixed H=5 | −293.6 | −295.7 | +2.03 | 5.0 |
-| Fixed H=20 | −149.9 | −149.7 | −0.19 | 20.0 |
-| Uncertainty | −150.0 | −149.8 | −0.20 | 16.4 |
-| Weighted H=20 | −278.9 | −288.6 | +9.75 | 20.0 |
-
-**Reading:** the model is so faithful on its own training distribution that model ≈ real everywhere (gap ≈ 0 for H=20 / uncertainty). There is almost no model error to exploit and no headroom to improve a near-optimal policy — a *degenerate* regime for studying exploitation. ([`runs/comparison/comparison.md`](runs/comparison/comparison.md))
-
-### Regime B — refine an *off-distribution* (sub-optimal) policy
-
-Warm-start instead from a deliberately sub-optimal checkpoint (`ppo_mid`, deterministic ≈ −570), **500k** imagined steps, **3 seeds** per method, against the *same* expert-trained model.
-
-```bash
-python train_ppo.py --seed 0 --total-timesteps 400000 --anneal-lr 0 --ent-coef 0.01 \
-  --normalize-reward 1 --output-dir runs/ppo_mid            # the mid checkpoint
-# 4 methods × 3 seeds, warm-started from ppo_mid, 500k imagined steps → runs/imag2_*
-python compare_imagined_methods.py --world-model runs/world_model/world_model.pt \
-  --state-dataset data/policy.npz --checkpoints runs/ppo_mid/checkpoint.pt runs/imag2_*/checkpoint.pt \
-  --episodes 50 --output-dir runs/comparison_seeds_raw
-python aggregate_comparison.py --comparison-csv runs/comparison_seeds_raw/comparison.csv \
-  --output-dir runs/comparison_seeds
-```
-
-| Method | Real return | Exploitation gap | Mean horizon |
-|---|--:|--:|--:|
-| mid init (baseline) | −576 | −3 | — |
-| Fixed H=5 | −792 ± 249 | **+20 ± 22** | 5.0 |
-| Fixed H=20 | −754 ± 105 | **+28 ± 21** | 20.0 |
-| Uncertainty | −1473 ± 24 | +9 ± 26 | **4.3** |
-| Weighted H=20 | −1462 ± 4 | −13 ± 1 | 20.0 |
-
-![Exploitation gap across seeds](runs/comparison_seeds/exploitation_gap_seeds.png)
-
-**Now the exploitation gap appears** — and it is *largest at H=20* (+28), consistent with more error accumulation over longer imagined rollouts. ([`runs/comparison_seeds/comparison_aggregated.md`](runs/comparison_seeds/comparison_aggregated.md))
-
----
-
-## Key finding: two regimes of model-based refinement
-
-Putting the two regimes together gives a sharper statement than either alone:
-
-1. **In-distribution refinement is safe but uninformative.** Refining the policy that generated the model's data leaves model ≈ real (gap ≈ 0); there is nothing to exploit and nothing to gain.
-2. **Off-distribution refinement exposes the failure modes.** Optimizing a policy the model never saw produces a genuine, horizon-growing exploitation gap under fixed rollouts — *and* the uncertainty machinery, **calibrated on the narrow expert distribution ($q_{95}=6.6\times10^{-6}$), does not transfer**: the mid policy induces uncertainty ~10⁻⁵ everywhere, so termination fires immediately (adaptive horizon collapses **20 → 4.3**), starving credit assignment, and weighted advantages down-weight nearly every transition. Both "safeguards" therefore *hurt* real return here.
-
-The lesson is not "these methods don't work" but the more precise, more useful one: **a static world model only supports reliable policy improvement within its training distribution, and uncertainty thresholds must be calibrated on the distribution the policy actually visits.** This is precisely *long-horizon error accumulation* + *policy-induced distribution shift* made measurable on a controllable toy.
-
----
-
-## Limitations & future work
-
-- **World-model coverage.** The decisive fix is to train the ensemble on **broad replay data** (e.g. `policy ∪ random`) and **recalibrate uncertainty** there, so $\tau$ matches the region the policy explores — the standard MBPO/Dreamer setup. Expected outcome: uncertainty-aware methods recover more real return *and* shrink the gap versus naive fixed rollouts. (Scaffolding is in place; this is a ~1-file rerun.)
-- **Iterative data collection.** A single static model cannot follow a policy that moves; alternating data collection and model retraining (MBPO-style) is the principled cure for policy-induced shift.
-- **Seeds & significance.** Phase 1 uses 3 seeds; Regime B uses 3 seeds with reported std. Regime A is single-seed and should be seeded before drawing quantitative conclusions.
-- **Scale.** Everything is a 3-D state space. The *mechanisms* (Δ-dynamics, ensemble uncertainty, imagined refinement, exploitation-gap measurement) transfer to higher-dimensional and pixel/latent world models; the toy makes them cheap to isolate and inspect.
-
----
-
-## Scope & honesty statement
-
-This is a **focused reproduction / mechanism study**, built from scratch to understand *how policy optimization stays reliable under an imperfect learned model*. It is a state-space dynamics-model MBRL project, **not** a generative or video world model, and the results — including a safeguard that fails to transfer off-distribution — are reported as measured. Findings that did not go the "expected" way are analyzed in [§Key finding](#key-finding-two-regimes-of-model-based-refinement) rather than omitted.
-
-**Concepts reproduced:** PPO (Schulman et al., 2017), GAE (Schulman et al., 2016), probabilistic dynamics ensembles / PETS (Chua et al., 2018), model exploitation & MBPO (Janner et al., 2019), imagined-rollout policy learning / Dreamer (Hafner et al., 2020).
+The project provides a small, inspectable setting for studying how prediction, uncertainty, and policy optimization interact in embodied control.
