@@ -70,7 +70,7 @@ G(\pi)=J_{\mathrm{model}}(\pi)-J_{\mathrm{env}}(\pi).
 
 A positive gap means the model overestimates the policy's return. The code calls this quantity the *exploitation gap*.
 
-For any policy update, let $\Delta$ denote the change from the old policy to the new one. The definition gives a useful accounting identity:
+For any policy update, let $`\Delta`$ denote the change from the old policy to the new one. The definition gives a useful accounting identity:
 
 ```math
 \Delta J_{\mathrm{env}}=\Delta J_{\mathrm{model}}-\Delta G.
@@ -175,14 +175,14 @@ The implementation maximizes this surrogate with normalized GAE advantages and j
 
 ### Dynamics with physical state geometry
 
-The observation is $s=(\cos\varphi,\sin\varphi,\dot\varphi)$. Each ensemble member learns a normalized state increment, then projects its prediction:
+The observation is $`s=(\cos\varphi,\sin\varphi,\dot\varphi)`$. Each ensemble member learns a normalized state increment, then projects its prediction:
 
 ```math
 \hat s_{t+1}^{(j)}=\Pi\!\left(s_t+f_{\phi_j}(s_t,a_t)\right),
 \qquad j=1,\ldots,5.
 ```
 
-Here, $f_{\phi_j}$ includes input normalization and output rescaling. The projection normalizes each member's angular coordinates and clips angular velocity to the environment range. The ensemble mean supplies the next imagined state.
+Here, $`f_{\phi_j}`$ includes input normalization and output rescaling. The projection normalizes each member's angular coordinates and clips angular velocity to the environment range. The ensemble mean supplies the next imagined state.
 
 Each member trains on a bootstrap sample. An episode-grouped split keeps all recorded transitions from each episode in the same subset.
 
@@ -198,8 +198,8 @@ u(s,a)=\frac{1}{3}\sum_{k=1}^{3}\mathrm{Var}_{j}\!\left[\hat s_{k}^{(j)}\right].
 
 The experiments compare fixed rollouts against two ways to use this signal:
 
-- **Terminate:** end an imagined segment when disagreement exceeds the validation-set 95th percentile, $\tau\approx6.63\times10^{-6}$, or the horizon limit.
-- **Weight:** multiply normalized policy advantages by $w_t=\max\{0.02,\exp(-\beta u_t/\tau)\}$ while retaining the full rollout.
+- **Terminate:** end an imagined segment when disagreement exceeds the validation-set 95th percentile, $`\tau\approx6.63\times10^{-6}`$, or the horizon limit.
+- **Weight:** multiply normalized policy advantages by $`w_t=\max\{0.02,\exp(-\beta u_t/\tau)\}`$ while retaining the full rollout.
 
 Termination also cuts the critic's continuation value at the segment boundary. Weighting acts on the policy objective while the critic keeps its usual loss. These choices connect uncertainty directly to credit assignment and optimization.
 
