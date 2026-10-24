@@ -6,7 +6,7 @@
 
 Continuous control · Learned world models · Uncertainty · Distribution shift
 
-[Technical report](docs/world_model_rl_study.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#inside-the-method) · [Code](#explore-the-code) · [Get started](#get-started)
+[Research paper](docs/world_model_rl_study.pdf) · [Results](#what-the-experiments-show) · [Mathematics](#inside-the-method) · [Code](#explore-the-code) · [Get started](#get-started)
 
 </div>
 
@@ -204,7 +204,7 @@ Termination also cuts the critic's continuation value at the segment boundary. W
 | [`imagined_env.py`](imagined_env.py) · [`train_imagined_ppo.py`](train_imagined_ppo.py) | Model-based rollouts and the four refinement variants |
 | [`compare_imagined_methods.py`](compare_imagined_methods.py) · [`aggregate_comparison.py`](aggregate_comparison.py) | Paired evaluation and summaries across seeds |
 
-The [technical report](docs/world_model_rl_study.pdf) connects this control study with World4RL and WoVR, two approaches to world-model-based policy refinement for robotic manipulation. See the [file map](PROJECT_FILES.md) for the remaining utilities.
+The [research paper](docs/world_model_rl_study.pdf) connects this control study with World4RL and WoVR, two approaches to world-model-based policy refinement for robotic manipulation. See the [file map](PROJECT_FILES.md) for the remaining utilities.
 
 ## Get started
 
