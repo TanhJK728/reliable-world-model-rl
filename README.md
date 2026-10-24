@@ -155,12 +155,8 @@ The implementation maximizes this surrogate with normalized GAE advantages and j
 
 </details>
 
-
-The implementation maximizes this surrogate with normalized GAE advantages and jointly fits the critic.
-
 [Policy and density](ppo_core.py) · [PPO training](train_ppo.py)
 
-</details>
 
 ### Dynamics with physical state geometry
 
@@ -211,7 +207,7 @@ The [research paper](docs/world_model_rl_study.pdf) connects this control study 
 The figures and result tables above are available directly in the repository.
 
 ```bash
-git clone https://github.com/TanhJK728/world-model-rl.git
+git clone https://github.com/TanhJK728/reliable-world-model-rl.git
 cd world-model-rl
 python3 -m venv .venv
 source .venv/bin/activate
