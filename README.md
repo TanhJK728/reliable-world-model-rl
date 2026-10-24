@@ -49,13 +49,15 @@ A positive gap means the model overestimates the policy's return. The code calls
 
 For any policy update, let $\Delta$ denote the change from the old policy to the new one. The definition gives a useful accounting identity:
 
-$$
+
+```math
+\begin{aligned}
 \underbrace{\Delta J_{\mathrm{env}}}_{\text{gain in the environment}}
-=
+&=
 \underbrace{\Delta J_{\mathrm{model}}}_{\text{gain in imagination}}
--
-\underbrace{\Delta G}_{\text{change in model optimism}}.
-$$
+&\quad - \underbrace{\Delta G}_{\text{change in model optimism}}
+\end{aligned}
+```
 
 This explains why both return and gap matter when judging an update.
 
